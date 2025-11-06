@@ -16,6 +16,7 @@ import com.example.GestionComida.service.ExportService;
 import com.example.GestionComida.service.ProductService;
 import com.example.GestionComida.service.ReportService;
 import com.example.GestionComida.service.UserService;
+import com.example.GestionComida.service.OrderService;
 import com.example.GestionComida.web.ApiResponse;
 import com.example.GestionComida.web.dto.admin.CreateProductRequest;
 import com.example.GestionComida.web.dto.admin.CreateUserRequest;
@@ -31,6 +32,9 @@ import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.time.LocalDate;
+import com.example.GestionComida.web.dto.report.GenericCountDto;
+import com.example.GestionComida.web.dto.report.RateDto;
+import com.example.GestionComida.web.dto.report.CancellationReasonDto;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -46,6 +50,7 @@ public class AdminController {
     private final RoleRepository roleRepo;
     private final ReportService reports;
     private final ProductService productService;
+    private final OrderService orderService;
     private final UserService userService;
     private final ExportService exportService;
 
@@ -148,6 +153,12 @@ public class AdminController {
     @PutMapping("/orders/{id}/status")
     public ApiResponse<Void> updateStatus() {
         // El frontend admin usa otro flujo; puedes reusar /seller/orders/{id}/status
+        return ApiResponse.ok();
+    }
+
+    @PostMapping("/orders/{id}/assign")
+    public ApiResponse<Void> assignOrderToSeller(@PathVariable Integer id, @RequestBody @Valid com.example.GestionComida.web.dto.AssignSellerRequest req) {
+        orderService.assignSeller(id, req);
         return ApiResponse.ok();
     }
 
@@ -343,6 +354,145 @@ public class AdminController {
         resp.put("sales_by_day", reports.ventasPorDia(date_from, date_to));
         resp.put("sales_by_seller", reports.ventasPorVendedor(date_from, date_to));
         resp.put("top_products", reports.topProductos(date_from, date_to, 10));
+        return ApiResponse.ok(resp);
+    }
+
+    /**
+     * Estadísticas (endpoints separados para consumo de gráficas)
+     */
+    @GetMapping("/stats/sales-by-day")
+    public ApiResponse<Map<String,Object>> statsSalesByDay(
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date_from,
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date_to
+    ){
+        Map<String,Object> resp = new HashMap<>();
+        resp.put("sales_by_day", reports.ventasPorDia(date_from, date_to));
+        return ApiResponse.ok(resp);
+    }
+
+    @GetMapping("/stats/sales-by-seller")
+    public ApiResponse<Map<String,Object>> statsSalesBySeller(
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date_from,
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date_to
+    ){
+        Map<String,Object> resp = new HashMap<>();
+        resp.put("sales_by_seller", reports.ventasPorVendedor(date_from, date_to));
+        return ApiResponse.ok(resp);
+    }
+
+    @GetMapping("/stats/top-products")
+    public ApiResponse<Map<String,Object>> statsTopProducts(
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date_from,
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date_to,
+            @RequestParam(defaultValue = "10") int limit
+    ){
+        Map<String,Object> resp = new HashMap<>();
+        resp.put("top_products", reports.topProductos(date_from, date_to, limit));
+        return ApiResponse.ok(resp);
+    }
+
+    @GetMapping("/stats/users-growth")
+    public ApiResponse<Map<String,Object>> statsUsersGrowth(
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date_from,
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date_to
+    ){
+        Map<String,Object> resp = new HashMap<>();
+        resp.put("users_growth", reports.usuariosPorDia(date_from, date_to));
+        return ApiResponse.ok(resp);
+    }
+
+    @GetMapping("/stats/orders-by-status")
+    public ApiResponse<Map<String,Object>> statsOrdersByStatus(
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date_from,
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date_to
+    ){
+        Map<String,Object> resp = new HashMap<>();
+        resp.put("orders_by_status", reports.pedidosPorEstado(date_from, date_to));
+        return ApiResponse.ok(resp);
+    }
+
+    @GetMapping("/stats/orders-period")
+    public ApiResponse<Map<String,Object>> statsOrdersPeriod(
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date_from,
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date_to,
+            @RequestParam(defaultValue = "daily") String granularity,
+            @RequestParam(required = false) Long objective
+    ){
+        Map<String,Object> resp = new HashMap<>();
+        List<GenericCountDto> series = reports.ordersSeries(date_from, date_to, granularity);
+        Long currentTotal = reports.ordersTotal(date_from, date_to);
+        // previous range
+        long days = java.time.temporal.ChronoUnit.DAYS.between(date_from, date_to) + 1;
+        java.time.LocalDate prevTo = date_from.minusDays(1);
+        java.time.LocalDate prevFrom = prevTo.minusDays(days-1);
+        Long prevTotal = reports.ordersTotal(prevFrom, prevTo);
+        double pctChange = prevTotal == 0 ? 0.0 : ((currentTotal - prevTotal) * 100.0 / (double) prevTotal);
+        resp.put("granularity", granularity);
+        resp.put("series", series);
+        resp.put("current_total", currentTotal);
+        resp.put("previous_total", prevTotal);
+        resp.put("percent_change", pctChange);
+        resp.put("objective", objective);
+        return ApiResponse.ok(resp);
+    }
+
+    @GetMapping("/stats/rates")
+    public ApiResponse<Map<String,Object>> statsRates(
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date_from,
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date_to
+    ){
+        Map<String,Object> resp = new HashMap<>();
+        resp.put("confirmation_rate", reports.confirmationRate(date_from, date_to));
+        resp.put("closure_rate", reports.closureRate(date_from, date_to));
+        resp.put("cancellation_rate", reports.cancellationRate(date_from, date_to));
+        resp.put("cancellation_reasons", reports.cancellationReasons(date_from, date_to));
+        return ApiResponse.ok(resp);
+    }
+
+    @GetMapping("/stats/revenue-summary")
+    public ApiResponse<Map<String,Object>> statsRevenueSummary(
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date_from,
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date_to
+    ){
+        Map<String,Object> resp = new HashMap<>();
+        java.time.LocalDate prevTo = date_from.minusDays(1);
+        long days = java.time.temporal.ChronoUnit.DAYS.between(date_from, date_to) + 1;
+        java.time.LocalDate prevFrom = prevTo.minusDays(days-1);
+        java.time.LocalDate yoyFrom = date_from.minusYears(1);
+        java.time.LocalDate yoyTo = date_to.minusYears(1);
+        java.math.BigDecimal current = reports.revenueTotal(date_from, date_to);
+        java.math.BigDecimal prev = reports.revenueTotal(prevFrom, prevTo);
+        java.math.BigDecimal yoy = reports.revenueTotal(yoyFrom, yoyTo);
+        double pctChange = prev.compareTo(java.math.BigDecimal.ZERO) == 0 ? 0.0 : (current.subtract(prev).doubleValue() * 100.0 / prev.doubleValue());
+        double yoyPct = yoy.compareTo(java.math.BigDecimal.ZERO) == 0 ? 0.0 : (current.subtract(yoy).doubleValue() * 100.0 / yoy.doubleValue());
+        resp.put("current_revenue", current);
+        resp.put("previous_revenue", prev);
+        resp.put("percent_change", pctChange);
+        resp.put("yoy_revenue", yoy);
+        resp.put("yoy_percent_change", yoyPct);
+        return ApiResponse.ok(resp);
+    }
+
+    @GetMapping("/stats/revenue-by-segment")
+    public ApiResponse<Map<String,Object>> statsRevenueBySegment(
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date_from,
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date_to
+    ){
+        Map<String,Object> resp = new HashMap<>();
+        resp.put("by_seller", reports.revenueBySeller(date_from, date_to));
+        resp.put("by_channel", reports.revenueByChannel(date_from, date_to));
+        resp.put("by_category", reports.revenueByCategory(date_from, date_to));
+        return ApiResponse.ok(resp);
+    }
+
+    @GetMapping("/stats/top-clients")
+    public ApiResponse<Map<String,Object>> statsTopClients(
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date_from,
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date_to,
+            @RequestParam(defaultValue = "20") int limit
+    ){
+        Map<String,Object> resp = new HashMap<>();
+        resp.put("top_clients", reports.clientsByOrders(date_from, date_to, limit));
         return ApiResponse.ok(resp);
     }
 

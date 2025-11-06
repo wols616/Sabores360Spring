@@ -513,6 +513,88 @@ Nota: El endpoint antiguo `PUT /api/client/profile` era un placeholder; usa `PUT
 - Query params: date_from, date_to
 - Response: ResponseEntity<byte[]> con archivo `reportes.xlsx`
 
+### Estadísticas granulares — endpoints para gráficas (solo ADMIN)
+
+Estos endpoints devuelven agregados pensados para dashboards y gráficas. Todos requieren: autenticación con token JWT y rol `ADMINISTRADOR`.
+
+### GET /api/admin/stats/sales-by-day
+
+- Qué hace: Ventas por día (solo pedidos entregados) en el rango indicado.
+- Método: GET
+- Query params: date_from (YYYY-MM-DD), date_to (YYYY-MM-DD)
+- Response: ApiResponse { sales_by_day: [ SalesByDayDto ] }
+  - SalesByDayDto: { fecha: YYYY-MM-DD, cantidadPedidos: Long, totalVentas: decimal }
+
+### GET /api/admin/stats/sales-by-seller
+
+- Qué hace: Totales por vendedor en el rango (número de pedidos y suma de ventas).
+- Método: GET
+- Query params: date_from, date_to
+- Response: ApiResponse { sales_by_seller: [ SalesBySellerDto ] }
+  - SalesBySellerDto: { vendedorId, vendedorNombre, cantidadPedidos, totalVentas }
+
+### GET /api/admin/stats/top-products
+
+- Qué hace: Top de productos por cantidad vendida en el rango.
+- Método: GET
+- Query params: date_from, date_to, limit (opcional, default=10)
+- Response: ApiResponse { top_products: [ TopProductDto ] }
+  - TopProductDto: { productoId, productoNombre, cantidadVendida, totalVentas }
+
+### GET /api/admin/stats/users-growth
+
+- Qué hace: Nuevos usuarios por día en el rango.
+- Método: GET
+- Query params: date_from, date_to
+- Response: ApiResponse { users_growth: [ UsersByDayDto ] }
+  - UsersByDayDto: { fecha: YYYY-MM-DD, cantidadUsuarios }
+
+### GET /api/admin/stats/orders-by-status
+
+- Qué hace: Conteo de pedidos por estado en el rango.
+- Método: GET
+- Query params: date_from, date_to
+- Response: ApiResponse { orders_by_status: [ StatusCountDto ] }
+  - StatusCountDto: { status: String, count: Long }
+
+### GET /api/admin/stats/orders-period
+
+- Qué hace: Serie de conteos de pedidos según granularidad (daily, weekly, monthly) y totales con comparación al periodo anterior.
+- Método: GET
+- Query params: date_from, date_to, granularity (daily|weekly|monthly, default=daily), objective (optional numeric target)
+- Response: ApiResponse { granularity, series: [ { label, count } ], current_total, previous_total, percent_change, objective }
+  - `series` es una lista de puntos { label: string, count: long } (label: fecha / semana / mes según granularidad)
+
+### GET /api/admin/stats/rates
+
+- Qué hace: Devuelve tasas clave del periodo: tasa de confirmación, tasa de cierre (entregado/total), tasa de cancelación y desglose por motivo.
+- Método: GET
+- Query params: date_from, date_to
+- Response: ApiResponse { confirmation_rate: RateDto, closure_rate: RateDto, cancellation_rate: RateDto, cancellation_reasons: [ CancellationReasonDto ] }
+  - RateDto: { name, value (porcentaje 0..100), numerator, denominator }
+  - CancellationReasonDto: { reason, count }
+
+### GET /api/admin/stats/revenue-summary
+
+- Qué hace: Ingresos totales en el periodo (solo pedidos entregados) + comparación con periodo anterior y YoY.
+- Método: GET
+- Query params: date_from, date_to
+- Response: ApiResponse { current_revenue, previous_revenue, percent_change, yoy_revenue, yoy_percent_change }
+
+### GET /api/admin/stats/revenue-by-segment
+
+- Qué hace: Desglose de ingresos por segmento: vendedor, canal (paymentMethod) y categoría de producto.
+- Método: GET
+- Query params: date_from, date_to
+- Response: ApiResponse { by_seller: [ SalesBySellerDto ], by_channel: [ { label, count } ], by_category: [ { label, count } ] }
+
+### GET /api/admin/stats/top-clients
+
+- Qué hace: Clientes ordenados por número de pedidos en el periodo (top N).
+- Método: GET
+- Query params: date_from, date_to, limit (default=20)
+- Response: ApiResponse { top_clients: [ { label: clientNameOrId, count } ] }
+
 ### GET /api/admin/users
 
 - Qué hace: Lista usuarios (paginado).

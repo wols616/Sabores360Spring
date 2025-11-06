@@ -42,10 +42,10 @@ public final class OrderStatusValidator {
     }
 
     public static boolean canTransition(String from, String to){
-        Set<String> next = ALLOWED_TRANSITIONS.containsKey(from)
-                ? ALLOWED_TRANSITIONS.get(from)
-                : Collections.<String>emptySet();
-        return next.contains(to);
+        // Allow any transition by default as long as the target status is a known valid status.
+        // This relaxes the previous strict transition map and enables changing status in any order.
+        if (to == null) return false;
+        return VALID_STATUSES.contains(to);
     }
 
     public static void ensureValid(String status){
