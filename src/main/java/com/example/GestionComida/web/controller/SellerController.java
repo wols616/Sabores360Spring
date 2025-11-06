@@ -101,6 +101,23 @@ public class SellerController {
         return ApiResponse.ok();
     }
 
+    /**
+     * Obtener el estado (isAvailable) de un producto – endpoint para vendedores.
+     */
+    @GetMapping("/products/{id}/status")
+    public ApiResponse<Map<String, Object>> productStatus(@PathVariable Integer id) {
+        Product p = productRepo.findById(id).orElse(null);
+        Map<String, Object> resp = new HashMap<>();
+        if (p == null) {
+            resp.put("id", id);
+            resp.put("isAvailable", null);
+            return ApiResponse.ok(resp);
+        }
+        resp.put("id", p.getId());
+        resp.put("isAvailable", p.getIsAvailable());
+        return ApiResponse.ok(resp);
+    }
+
     @PostMapping("/products/{id}/stock")
     public ApiResponse<Void> stock(@PathVariable Integer id, @RequestBody Map<String,Integer> body){
         Integer stock = body.get("stock");

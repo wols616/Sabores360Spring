@@ -253,12 +253,20 @@ public ApiResponse<List<ProductFullDto>> cartDetails(@RequestBody @jakarta.valid
     // Detalle de un pedido -> DTO completo
     // ---------------------------------------
     @GetMapping("/orders/{id}")
-    public ApiResponse<Map<String, Object>> orderDetail(@PathVariable Integer id) {
+    public ApiResponse<Map<String, Object>> orderDetail(org.springframework.security.core.Authentication authentication, @PathVariable Integer id) {
+        // Asegurarse que el cliente autenticado sea el propietario del pedido
+        User client = getAuthenticatedUser(authentication);
+
         Order o = orderRepo.findById(id).orElse(null);
         if (o == null) {
             Map<String, Object> r = new HashMap<>();
             r.put("order", null);
             return ApiResponse.ok(r);
+        }
+
+        if (o.getClient() == null || !Objects.equals(o.getClient().getId(), client.getId())) {
+            // No es el propietario -> denegar acceso
+            return new com.example.GestionComida.web.ApiResponse<Map<String, Object>>(false, null, "forbidden");
         }
 
         List<OrderItem> entityItems = itemRepo.findByOrder_Id(id);

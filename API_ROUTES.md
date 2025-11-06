@@ -17,6 +17,37 @@ Nota: la mayoría de respuestas están envueltas en `ApiResponse` (campo `data`/
   - password (string, required)
 - Response: Map con datos devueltos por `auth.login(...)` + `success: true` (ej. token, user info) — revisar implementación de `AuthService` para el contenido exacto.
 
+### GET /api/auth/me
+
+- Qué hace: Devuelve información del usuario autenticado (útil para mostrar datos en el perfil y decidir vistas según rol).
+- Método: GET
+- Requiere: Autenticación (token JWT en Authorization header). Si no hay usuario autenticado devuelve `user: null`.
+- Response: Map { success: true, user: { id, name, email, role } }
+  - `role` viene mapeado a: `admin` | `seller` | `client` según el rol en la entidad.
+  - Ejemplo de respuesta cuando hay usuario:
+
+```json
+{
+  "success": true,
+  "user": {
+    "id": 12,
+    "name": "Juan Perez",
+    "email": "juan@example.com",
+    "role": "client",
+    "address": "Av. Siempre Viva 742, Ciudad"
+  }
+}
+```
+
+Ejemplo cuando no hay sesión válida:
+
+```json
+{
+  "success": true,
+  "user": null
+}
+```
+
 ### POST /api/auth/register
 
 - Qué hace: Registra un usuario.
@@ -167,6 +198,16 @@ Nota: El endpoint antiguo `PUT /api/client/profile` era un placeholder; usa `PUT
 - Método: GET
 - Path param: id (int)
 - Response: ApiResponse { order: OrderDetailDto }
+
+  - OrderDetailDto: id, status, totalAmount, deliveryAddress, paymentMethod, createdAt, items: [OrderItemDto]
+  - OrderItemDto: productId, productName, quantity, unitPrice
+
+- Qué hace: Detalle de pedido (DTO completo) para el cliente propietario.
+- Método: GET
+- Path param: id (int)
+- Requiere: Autenticación (token JWT). Sólo el cliente que creó/posee el pedido puede ver su detalle.
+- Errores: Si el pedido no existe devuelve `order: null`. Si el usuario autenticado no es el propietario devuelve `ApiResponse.error("forbidden")` (uso interno — 403 en la UI).
+- Response: ApiResponse { order: OrderDetailDto }
   - OrderDetailDto: id, status, totalAmount, deliveryAddress, paymentMethod, createdAt, items: [OrderItemDto]
   - OrderItemDto: productId, productName, quantity, unitPrice
 
@@ -261,6 +302,13 @@ Nota: El endpoint antiguo `PUT /api/client/profile` era un placeholder; usa `PUT
 - Request body: AvailabilityRequest
   - available (boolean, required)
 - Response: ApiResponse<Void>
+
+### GET /api/seller/products/{id}/status
+
+- Qué hace: Devuelve el estado de disponibilidad (`isAvailable`) del producto indicado. Pensado para que el vendedor consulte rápidamente si un producto está activo.
+- Método: GET
+- Path params: id (int)
+- Response: ApiResponse { id: <int>, isAvailable: <boolean|null> }
 
 ### POST /api/seller/products/{id}/stock
 
@@ -639,6 +687,22 @@ Estos endpoints devuelven agregados pensados para dashboards y gráficas. Todos 
 - Response: ApiResponse<Void>
 
 ---
+
+## Endpoints públicos adicionales
+
+### GET /api/products/active-count
+
+- Qué hace: Devuelve el total de productos activos (isAvailable = true). Este endpoint es público dentro de la API (no exige rol específico) y es útil para mostrar counters o badges en la UI.
+- Método: GET
+- Query params: ninguno
+- Response: ApiResponse { active_count: <long> }
+
+### GET /api/orders/{id}/details
+
+- Qué hace: Devuelve el detalle extendido de un pedido por su id: datos del pedido, cliente (id, nombre, email, dirección), total, y lista de ítems con cantidad, precio unitario y total por ítem. Útil para un botón "Ver detalle" en la UI.
+- Método: GET
+- Path params: id (int)
+- Response: ApiResponse { order: { id, status, totalAmount, deliveryAddress, paymentMethod, createdAt, client: { id, name, email, address }, items: [ { productId, productName, quantity, unitPrice, total } ] } }
 
 ## Observaciones importantes para las vistas y formularios
 

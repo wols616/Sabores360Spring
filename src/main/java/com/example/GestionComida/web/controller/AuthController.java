@@ -43,6 +43,8 @@ public class AuthController {
         userMap.put("id", u.getId());
         userMap.put("name", u.getName());
         userMap.put("email", u.getEmail());
+    // Incluir dirección en la respuesta del perfil
+    userMap.put("address", u.getAddress());
         if (u.getRole() != null && u.getRole().getName() != null) {
             String rn = u.getRole().getName().toLowerCase(java.util.Locale.ROOT);
             if ("administrador".equals(rn)) userMap.put("role", "admin");
