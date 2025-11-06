@@ -13,6 +13,9 @@ import lombok.RequiredArgsConstructor;
 import org.mindrot.jbcrypt.BCrypt;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.mail.SimpleMailMessage;
+import org.springframework.mail.javamail.JavaMailSender;
+import org.springframework.beans.factory.annotation.Autowired;
 
 import java.util.HashMap;
 import java.util.List;
@@ -27,6 +30,8 @@ public class AuthService {
     private final RoleRepository roleRepo;
     private final PasswordResetRepository resetRepo;
     private final JwtUtil jwtUtil;
+    @Autowired(required = false)
+    private JavaMailSender mailSender;
 
     public Map<String, Object> login(String email, String password) {
         // Buscar usuario por email usando el nuevo método
@@ -110,7 +115,7 @@ public class AuthService {
         // Buscar usuario por email
         User u = userRepo.findByEmail(email)
                 .orElseThrow(() -> new NotFoundException("email_not_found"));
-
+        // Generar token y persistir en la tabla password_resets
         String token = UUID.randomUUID().toString();
         PasswordReset pr = PasswordReset.builder()
                 .email(u.getEmail())
@@ -118,7 +123,35 @@ public class AuthService {
                 .build();
         resetRepo.save(pr);
 
-        // Aquí normalmente enviarías el correo con el token
+        // Enviar correo SMTP con el token si hay JavaMailSender configurado
+        if (mailSender != null) {
+            try {
+                SimpleMailMessage msg = new SimpleMailMessage();
+                String from = "no-reply@localhost";
+                // If application property spring.mail.default-from is set, Spring's JavaMailSender
+                // may automatically use it; here we set a sensible default.
+                msg.setFrom(from);
+                msg.setTo(u.getEmail());
+                msg.setSubject("Recuperación de contraseña - GestionComida");
+                StringBuilder body = new StringBuilder();
+                body.append("Hola ").append(u.getName() == null ? "" : u.getName()).append(",\n\n");
+                body.append("Se ha solicitado un restablecimiento de contraseña para tu cuenta.\n\n");
+                body.append("Tu código de recuperación es:\n\n");
+                body.append(token).append("\n\n");
+                body.append("Si no solicitaste este correo, ignora este mensaje.\n\n");
+                body.append("Saludos,\n");
+                body.append("GestionComida");
+                msg.setText(body.toString());
+                mailSender.send(msg);
+            } catch (Exception ex) {
+                // Si falla el envío, dejar el token persistido pero reportar error para que el caller lo maneje.
+                throw new RuntimeException("mail_send_failed");
+            }
+        } else {
+            // No hay JavaMailSender configurado; token queda persistido but no email will be sent.
+            // Log a message to console for debugging during development.
+            System.err.println("[AuthService] JavaMailSender not configured - skipped sending reset email to " + u.getEmail());
+        }
     }
 
     @Transactional
