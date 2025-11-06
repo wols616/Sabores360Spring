@@ -45,6 +45,37 @@ Nota: la mayoría de respuestas están envueltas en `ApiResponse` (campo `data`/
   - password (string, minLength=8)
 - Response: ApiResponse<Void>
 
+### POST /api/auth/change-password
+
+- Qué hace: Permite al usuario autenticado cambiar su contraseña actualizando la base de datos después de verificar la contraseña actual.
+- Método: POST
+- Requiere: Autenticación (token JWT en Authorization header)
+- Request body: ChangePasswordRequest
+  - currentPassword (string, required)
+  - newPassword (string, required, minLength=8)
+- Response: ApiResponse<Void>
+- Errores comunes:
+  - 400 { success:false, message:"invalid_current_password" } — la contraseña actual no coincide
+  - 400 validation_failed — nueva contraseña no cumple validación (por ejemplo longitud mínima)
+  - 401/403 — si el usuario no está autenticado o el token es inválido
+
+### PUT /api/auth/profile
+
+- Qué hace: Permite al usuario autenticado actualizar su perfil (nombre, email, dirección). Funciona para cualquier tipo de usuario (cliente, vendedor, administrador).
+- Método: PUT
+- Requiere: Autenticación (token JWT en Authorization header)
+- Request body: UpdateProfileRequest (campos opcionales — sólo los que se envíen serán actualizados)
+  - name (string, optional)
+  - email (string, optional, formato email) — si se cambia, se verifica unicidad en la DB
+  - address (string, optional)
+- Response: ApiResponse<Void>
+- Errores comunes:
+  - 400 { success:false, message:"email_exists" } — el email ya está en uso por otro usuario
+  - 400 validation_failed — formato inválido (por ejemplo email no válido)
+  - 401/403 — si el usuario no está autenticado o el token es inválido
+
+Nota: El endpoint antiguo `PUT /api/client/profile` era un placeholder; usa `PUT /api/auth/profile` para actualizar perfil desde cualquier rol.
+
 ### GET/POST /api/auth/logout
 
 - Qué hace: Logout (placeholder; si usas JWT puede no invalidar tokens automáticamente).

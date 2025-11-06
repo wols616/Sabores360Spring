@@ -7,6 +7,8 @@ import com.example.GestionComida.web.dto.auth.ForgotPasswordRequest;
 import com.example.GestionComida.web.dto.auth.LoginRequest;
 import com.example.GestionComida.web.dto.auth.RegisterRequest;
 import com.example.GestionComida.web.dto.auth.ResetPasswordRequest;
+import com.example.GestionComida.web.dto.auth.ChangePasswordRequest;
+import com.example.GestionComida.web.dto.auth.UpdateProfileRequest;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.*;
@@ -71,6 +73,28 @@ public class AuthController {
     @PostMapping("/reset-password")
     public ApiResponse<Void> reset(@RequestBody @Valid ResetPasswordRequest req){
         auth.resetPassword(req.getToken(), req.getPassword());
+        return ApiResponse.ok();
+    }
+
+    @PostMapping("/change-password")
+    public ApiResponse<Void> changePassword(org.springframework.security.core.Authentication authentication, @RequestBody @Valid ChangePasswordRequest req){
+        if (authentication == null || authentication.getPrincipal() == null || !(authentication.getPrincipal() instanceof com.example.GestionComida.domain.entity.User)) {
+            return ApiResponse.error("unauthenticated");
+        }
+
+        com.example.GestionComida.domain.entity.User u = (com.example.GestionComida.domain.entity.User) authentication.getPrincipal();
+        auth.changePassword(u.getId(), req.getCurrentPassword(), req.getNewPassword());
+        return ApiResponse.ok();
+    }
+
+    @PutMapping("/profile")
+    public ApiResponse<Void> updateProfile(org.springframework.security.core.Authentication authentication, @RequestBody @Valid UpdateProfileRequest req) {
+        if (authentication == null || authentication.getPrincipal() == null || !(authentication.getPrincipal() instanceof com.example.GestionComida.domain.entity.User)) {
+            return ApiResponse.error("unauthenticated");
+        }
+
+        com.example.GestionComida.domain.entity.User u = (com.example.GestionComida.domain.entity.User) authentication.getPrincipal();
+        auth.updateProfile(u.getId(), req.getName(), req.getEmail(), req.getAddress());
         return ApiResponse.ok();
     }
 

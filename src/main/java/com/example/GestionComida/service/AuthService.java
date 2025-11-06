@@ -178,4 +178,47 @@ public class AuthService {
 
         resetRepo.delete(pr);
     }
+
+    @Transactional
+    public void changePassword(Integer userId, String currentPassword, String newPassword) {
+        User u = userRepo.findById(userId)
+                .orElseThrow(() -> new NotFoundException("email_not_found"));
+
+        try {
+            if (u.getPasswordHash() == null || !BCrypt.checkpw(currentPassword, u.getPasswordHash())) {
+                throw new BadRequestException("invalid_current_password");
+            }
+        } catch (IllegalArgumentException ex) {
+            // invalid stored hash
+            throw new BadRequestException("invalid_current_password");
+        }
+
+        String hash = BCrypt.hashpw(newPassword, BCrypt.gensalt());
+        u.setPasswordHash(hash);
+        userRepo.save(u);
+    }
+
+    @Transactional
+    public void updateProfile(Integer userId, String name, String email, String address) {
+        User u = userRepo.findById(userId)
+                .orElseThrow(() -> new NotFoundException("email_not_found"));
+
+        // Email change: if provided and different, ensure uniqueness
+        if (email != null && !email.isBlank() && !email.equalsIgnoreCase(u.getEmail())) {
+            if (userRepo.existsByEmail(email)) {
+                throw new BadRequestException("email_exists");
+            }
+            u.setEmail(email);
+        }
+
+        if (name != null && !name.isBlank()) {
+            u.setName(name);
+        }
+
+        if (address != null) {
+            u.setAddress(address);
+        }
+
+        userRepo.save(u);
+    }
 }
