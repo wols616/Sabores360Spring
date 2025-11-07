@@ -267,6 +267,23 @@ Nota: El endpoint antiguo `PUT /api/client/profile` era un placeholder; usa `PUT
 - Método: GET
 - Response: ApiResponse { pending: <int>, recent_orders: [Order entity] }
   - Nota: recent_orders devuelve entidades `Order` completas; para vistas frontend usa los campos necesarios (id, status, totalAmount, createdAt, etc.)
+  - Cambios añadidos:
+    - `today_orders`: lista de pedidos del día actual (del vendedor autenticado). Útil para mostrar los pedidos que debe atender hoy.
+    - `today_sales_total`: total monetario (suma de `totalAmount`) de las ventas realizadas por el vendedor en la fecha actual.
+  - Ejemplo de `data` devuelta:
+
+```json
+{
+  "pending": 4,
+  "recent_orders": [
+    /* lista de orders */
+  ],
+  "today_orders": [
+    /* pedidos de hoy del vendedor */
+  ],
+  "today_sales_total": 254.3
+}
+```
 
 ### GET /api/seller/products/stock
 

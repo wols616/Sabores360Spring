@@ -21,6 +21,8 @@ import org.springframework.web.bind.annotation.*;
 
 import java.util.*;
 import java.util.stream.Collectors;
+import java.time.*;
+import java.math.BigDecimal;
 
 @RestController
 @RequestMapping("/api/seller")
@@ -56,10 +58,30 @@ public class SellerController {
                 .limit(10)
                 .collect(Collectors.toList());
 
-        Map<String,Object> resp = new HashMap<String,Object>();
-        resp.put("pending", pending);
-        resp.put("recent_orders", recent);
-        return ApiResponse.ok(resp);
+    // Calcula pedidos del día actual (del vendedor) y total monetario de ventas de hoy
+    ZoneId zone = ZoneId.systemDefault();
+    LocalDate today = LocalDate.now(zone);
+    Instant startOfDay = today.atStartOfDay(zone).toInstant();
+    Instant endOfDay = today.plusDays(1).atStartOfDay(zone).toInstant();
+
+    List<Order> todaysOrders = orders.stream()
+        .filter(o -> o.getCreatedAt() != null &&
+            !o.getCreatedAt().isBefore(startOfDay) &&
+            o.getCreatedAt().isBefore(endOfDay))
+        .sorted(Comparator.comparing(Order::getCreatedAt).reversed())
+        .collect(Collectors.toList());
+
+    BigDecimal todaysTotal = todaysOrders.stream()
+        .map(Order::getTotalAmount)
+        .filter(Objects::nonNull)
+        .reduce(BigDecimal.ZERO, BigDecimal::add);
+
+    Map<String,Object> resp = new HashMap<String,Object>();
+    resp.put("pending", pending);
+    resp.put("recent_orders", recent);
+    resp.put("today_orders", todaysOrders);
+    resp.put("today_sales_total", todaysTotal);
+    return ApiResponse.ok(resp);
     }
 
         @GetMapping("/categories")

@@ -72,14 +72,13 @@ public class SecurityConfig {
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration config = new CorsConfiguration();
         config.setAllowCredentials(true);
-        // Orígenes permitidos en desarrollo. Reemplaza o añade dominios según necesites.
-        config.addAllowedOrigin("http://localhost:8888");
+        // Desarrollo: permitir cualquier origen/puerto.
+        // Usamos allowed origin patterns para aceptar cualquier origen (incluyendo distinto puerto)
+        // y mantener allowCredentials=true; en producción restringe esto a orígenes concretos.
+        config.addAllowedOriginPattern("*");
         config.addAllowedHeader("*");
-        config.addAllowedMethod("GET");
-        config.addAllowedMethod("POST");
-        config.addAllowedMethod("PUT");
-        config.addAllowedMethod("DELETE");
-        config.addAllowedMethod("OPTIONS");
+        // Permitir todos los métodos en desarrollo
+        config.addAllowedMethod("*");
 
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
         source.registerCorsConfiguration("/**", config);
