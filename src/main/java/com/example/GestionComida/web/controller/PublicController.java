@@ -24,13 +24,15 @@ public class PublicController {
     /**
      * Versión pública de /api/client/products/full: devuelve las entidades completas
      * de los productos visibles al cliente, pero NO requiere autenticación.
+     * Devuelve un JSON con la estructura solicitada:
+     * { "success": true, "products": [...] }
      */
     @GetMapping("/products/full")
-    public ApiResponse<Map<String, Object>> productsFullPublic(
+    public Map<String, Object> productsFullPublic(
             @RequestParam(required = false) Integer category,
-            @RequestParam(required = false) String search,
-            @RequestParam(defaultValue = "1") int page
+            @RequestParam(required = false) String search
     ) {
+        // Cargar todos los productos (repositorio) y filtrar por disponibilidad y parámetros
         List<Product> base = productRepo.findAll();
 
         List<Product> filtered = new ArrayList<>();
@@ -44,7 +46,7 @@ public class PublicController {
                 }
             }
 
-            if (search != null) {
+            if (search != null && !search.isBlank()) {
                 String s = search.toLowerCase();
                 String n = p.getName() == null ? "" : p.getName().toLowerCase();
                 if (!n.contains(s)) continue;
@@ -52,9 +54,10 @@ public class PublicController {
             filtered.add(p);
         }
 
-        Map<String, Object> body = new HashMap<>();
-        body.put("products", filtered);
-        return ApiResponse.ok(body);
+        Map<String, Object> resp = new HashMap<>();
+        resp.put("success", true);
+        resp.put("products", filtered);
+
+        return resp;
     }
 }
-
