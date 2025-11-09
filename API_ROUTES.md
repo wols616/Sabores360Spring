@@ -174,6 +174,19 @@ Nota: El endpoint antiguo `PUT /api/client/profile` era un placeholder; usa `PUT
 - Response: ApiResponse { products: [Product entity] }
   - Product entity incluye: id, category, name, description, price, stock, imageUrl, isAvailable, createdAt, updatedAt
 
+
+### GET /api/public/products/full  (PÚBLICO, no requiere token)
+
+- Qué hace: Misma respuesta que `GET /api/client/products/full`, pero accesible sin autenticación. Devuelve la lista de productos visibles (`isAvailable=true`) con la entidad completa (incluye `imageUrl`), útil para vistas públicas (catálogo, landing pages) donde no se desea exigir login.
+- Método: GET
+- Acceso: Público — NO requiere Authorization header ni token JWT.
+- Query params:
+  - category (int, optional) — filtra por categoría
+  - search (string, optional) — búsqueda por nombre (case-insensitive, contiene)
+  - page (int, default=1)
+- Response: ApiResponse { products: [Product entity] }
+  - Product entity incluye: id, category, name, description, price, stock, imageUrl, isAvailable, createdAt, updatedAt
+
 ### POST /api/client/cart/details
 
 - Qué hace: Devuelve los detalles completos de los productos que están en el carrito (útil para mostrar imagenes y precios en el carrito). Recibe una lista de product ids y devuelve sus datos.
