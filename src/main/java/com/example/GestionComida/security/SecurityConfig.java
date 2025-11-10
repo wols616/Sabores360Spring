@@ -47,6 +47,8 @@ public class SecurityConfig {
                 .requestMatchers("/actuator/**").permitAll()
                 // Endpoints públicos (no requieren autenticación)
                 .requestMatchers("/api/public/**").permitAll()
+                // Permitir acceso público al detalle público de pedidos
+                .requestMatchers("/api/orders/*/details").permitAll()
                 // Endpoints públicos de autenticación
                 .requestMatchers("/api/auth/**").permitAll()
                 

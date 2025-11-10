@@ -59,7 +59,7 @@ public class SellerController {
                 .collect(Collectors.toList());
 
     // Calcula pedidos del día actual (del vendedor) y total monetario de ventas de hoy
-    ZoneId zone = ZoneId.systemDefault();
+    ZoneId zone = ZoneId.of("UTC");
     LocalDate today = LocalDate.now(zone);
     Instant startOfDay = today.atStartOfDay(zone).toInstant();
     Instant endOfDay = today.plusDays(1).atStartOfDay(zone).toInstant();

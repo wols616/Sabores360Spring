@@ -729,10 +729,10 @@ Estos endpoints devuelven agregados pensados para dashboards y gráficas. Todos 
 
 ### GET /api/orders/{id}/details
 
-- Qué hace: Devuelve el detalle extendido de un pedido por su id: datos del pedido, cliente (id, nombre, email, dirección), total, y lista de ítems con cantidad, precio unitario y total por ítem. Útil para un botón "Ver detalle" en la UI.
+- Qué hace: Devuelve detalle público de un pedido (items y cliente limitado).
 - Método: GET
-- Path params: id (int)
-- Response: ApiResponse { order: { id, status, totalAmount, deliveryAddress, paymentMethod, createdAt, client: { id, name, email, address }, items: [ { productId, productName, quantity, unitPrice, total } ] } }
+- Params: id (order id)
+- Response: { "success": true, "order": { id, status, totalAmount, deliveryAddress, paymentMethod, createdAt, client:{id,name,email,address}, items:[{productId,productName,quantity,unitPrice,total}] } | null }
 
 ## Observaciones importantes para las vistas y formularios
 

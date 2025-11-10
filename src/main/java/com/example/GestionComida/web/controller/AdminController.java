@@ -32,6 +32,9 @@ import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.time.LocalDate;
+import java.time.ZoneId;
+import java.math.BigDecimal;
+import com.example.GestionComida.repo.SalesByDayProjection;
 import com.example.GestionComida.web.dto.report.GenericCountDto;
 import com.example.GestionComida.web.dto.report.RateDto;
 import com.example.GestionComida.web.dto.report.CancellationReasonDto;
@@ -115,8 +118,8 @@ public class AdminController {
         List<Order> all = orderRepo.findAll().stream()
                 .filter(o -> status == null || (o.getStatus() != null && o.getStatus().equalsIgnoreCase(status)))
                 .filter(o -> vendorId == null || (o.getSeller() != null && Objects.equals(o.getSeller().getId(), vendorId)))
-                .filter(o -> date_from == null || !o.getCreatedAt().atZone(java.time.ZoneId.systemDefault()).toLocalDate().isBefore(date_from))
-                .filter(o -> date_to == null || !o.getCreatedAt().atZone(java.time.ZoneId.systemDefault()).toLocalDate().isAfter(date_to))
+                .filter(o -> date_from == null || !o.getCreatedAt().atZone(ZoneId.of("UTC")).toLocalDate().isBefore(date_from))
+                .filter(o -> date_to == null || !o.getCreatedAt().atZone(ZoneId.of("UTC")).toLocalDate().isAfter(date_to))
                 .filter(o -> {
                     if (search == null) return true;
                     boolean byId = String.valueOf(o.getId()).contains(search);
@@ -357,16 +360,135 @@ public class AdminController {
         return ApiResponse.ok(resp);
     }
 
+        @GetMapping("/stats/seller-sales-total")
+        public ResponseEntity<Map<String,Object>> sellerSalesTotal(
+                @RequestParam(required = false, name = "seller_id") Integer sellerId,
+                @RequestParam(required = false, name = "vendedorId") Integer vendedorId,
+                @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date
+        ) {
+            Integer id = sellerId != null ? sellerId : vendedorId;
+            if (id == null) {
+                Map<String,Object> err = new HashMap<>();
+                err.put("success", false);
+                err.put("message", "seller_id_required");
+                return ResponseEntity.badRequest().body(err);
+            }
+
+            LocalDate target = date == null ? LocalDate.now(ZoneId.of("UTC")) : date;
+            ZoneId zone = ZoneId.of("UTC");
+
+            BigDecimal total = orderRepo.findAll().stream()
+                    .filter(o -> o.getSeller() != null && Objects.equals(o.getSeller().getId(), id))
+                    .filter(o -> o.getStatus() != null && o.getStatus().equalsIgnoreCase("Entregado"))
+                    .filter(o -> {
+                        if (o.getCreatedAt() == null) return false;
+                        LocalDate ld = o.getCreatedAt().atZone(zone).toLocalDate();
+                        return ld.equals(target);
+                    })
+                    .map(o -> o.getTotalAmount() == null ? BigDecimal.ZERO : o.getTotalAmount())
+                    .reduce(BigDecimal.ZERO, BigDecimal::add);
+
+            Map<String,Object> out = new HashMap<>();
+            out.put("success", true);
+            out.put("total", total);
+            return ResponseEntity.ok(out);
+        }
+
+        @GetMapping("/stats/seller-delivered-count")
+        public ResponseEntity<Map<String,Object>> sellerDeliveredCount(
+                @RequestParam(required = false, name = "seller_id") Integer sellerId,
+                @RequestParam(required = false, name = "vendedorId") Integer vendedorId,
+                @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date
+        ) {
+            Integer id = sellerId != null ? sellerId : vendedorId;
+            if (id == null) {
+                Map<String,Object> err = new HashMap<>();
+                err.put("success", false);
+                err.put("message", "seller_id_required");
+                return ResponseEntity.badRequest().body(err);
+            }
+
+            LocalDate target = date == null ? LocalDate.now(ZoneId.of("UTC")) : date;
+            ZoneId zone = ZoneId.of("UTC");
+
+            long count = orderRepo.findAll().stream()
+                    .filter(o -> o.getSeller() != null && Objects.equals(o.getSeller().getId(), id))
+                    .filter(o -> o.getStatus() != null && o.getStatus().equalsIgnoreCase("Entregado"))
+                    .filter(o -> {
+                        if (o.getCreatedAt() == null) return false;
+                        LocalDate ld = o.getCreatedAt().atZone(zone).toLocalDate();
+                        return ld.equals(target);
+                    })
+                    .count();
+
+            Map<String,Object> out = new HashMap<>();
+            out.put("success", true);
+            out.put("count", count);
+            return ResponseEntity.ok(out);
+        }
+
     /**
      * Estadísticas (endpoints separados para consumo de gráficas)
      */
     @GetMapping("/stats/sales-by-day")
     public ApiResponse<Map<String,Object>> statsSalesByDay(
-            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date_from,
-            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date_to
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date_from,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date_to
     ){
+        // Match the PHP behavior: optional params; default date_to = now.endOfDay(), date_from = date_to -29 days startOfDay()
+        java.time.LocalDateTime endLdt;
+        java.time.LocalDateTime startLdt;
+
+        java.time.LocalDate today = java.time.LocalDate.now();
+        if (date_to != null) {
+            endLdt = date_to.atTime(java.time.LocalTime.MAX);
+        } else {
+            endLdt = java.time.LocalDateTime.now().with(java.time.LocalTime.MAX);
+        }
+
+        if (date_from != null) {
+            startLdt = date_from.atStartOfDay();
+        } else {
+            // default to 29 days before end
+            java.time.LocalDate defaultFrom = endLdt.toLocalDate().minusDays(29);
+            startLdt = defaultFrom.atStartOfDay();
+        }
+
+        // Ensure start <= end
+        if (startLdt.isAfter(endLdt)) {
+            java.time.LocalDateTime tmp = startLdt;
+            startLdt = endLdt;
+            endLdt = tmp;
+        }
+
+        // Use DB-side aggregation (group by DATE(created_at)) to match PHP code behavior and avoid timezone mapping differences
+        java.sql.Timestamp startTs = java.sql.Timestamp.valueOf(startLdt);
+        java.sql.Timestamp endTs = java.sql.Timestamp.valueOf(endLdt);
+
+        List<SalesByDayProjection> rows = orderRepo.findSalesByDay(startTs, endTs);
+        Map<String, java.math.BigDecimal> byDate = new HashMap<>();
+        for (SalesByDayProjection p : rows) {
+            String d = p.getDate();
+            java.math.BigDecimal tot = p.getTotal() == null ? java.math.BigDecimal.ZERO : p.getTotal();
+            byDate.put(d, tot);
+        }
+
+        // Build inclusive date list
+        java.time.LocalDate cur = startLdt.toLocalDate();
+        java.time.LocalDate endDate = endLdt.toLocalDate();
+        List<Map<String,Object>> list = new ArrayList<>();
+        while (!cur.isAfter(endDate)) {
+            String d = cur.toString();
+            java.math.BigDecimal t = byDate.getOrDefault(d, java.math.BigDecimal.ZERO);
+            Map<String,Object> row = new HashMap<>();
+            row.put("fecha", d);
+            row.put("totalVentas", t);
+            list.add(row);
+            cur = cur.plusDays(1);
+        }
+
         Map<String,Object> resp = new HashMap<>();
-        resp.put("sales_by_day", reports.ventasPorDia(date_from, date_to));
+        resp.put("sales_by_day", list);
         return ApiResponse.ok(resp);
     }
 
